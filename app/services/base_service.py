@@ -1,7 +1,9 @@
 from typing import Generic, Type, TypeVar, List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, String, Integer, Float, Boolean, Date, DateTime
+from sqlalchemy.exc import IntegrityError
 from app.db.base import Base
+from app.core.exceptions import ReglaNegocioException
 from datetime import datetime, date
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -11,17 +13,38 @@ class CRUDBase(Generic[ModelType]):
     def __init__(self, model: Type[ModelType]):
         self.model = model
 
-    async def obtener(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
-        return await db.get(self.model, id)
+    async def obtener(
+        self, db: AsyncSession, id: Any, options: list | None = None
+    ) -> Optional[ModelType]:
+        query = select(self.model).where(self.model.id == id)
+        if options:
+            query = query.options(*options)
+        result = await db.execute(query)
+        return result.scalars().first()
 
     async def obtener_todos(
-        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
+        self, db: AsyncSession, *, skip: int = 0, limit: int = 100, options: list | None = None
     ) -> List[ModelType]:
-        result = await db.execute(select(self.model).offset(skip).limit(limit))
+        query = select(self.model)
+        if options:
+            query = query.options(*options)
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
         return result.scalars().all()
 
-    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None):
+    async def obtener_paginado(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 10,
+        filters: dict | None = None,
+        options: list | None = None
+    ) -> dict[str, Any]:
         query = select(self.model)
+
+        if options:
+            query = query.options(*options)
 
         if filters:
             for field, value in filters.items():
@@ -35,22 +58,16 @@ class CRUDBase(Generic[ModelType]):
 
                     if isinstance(column_type, String):
                         query = query.where(column.ilike(f"%{value}%"))
-
                     elif isinstance(column_type, Integer):
                         query = query.where(column == int(value))
-
                     elif isinstance(column_type, Float):
                         query = query.where(column == float(value))
-
                     elif isinstance(column_type, Boolean):
                         query = query.where(column == (str(value).lower() == "true"))
-
                     elif isinstance(column_type, Date):
                         query = query.where(column == date.fromisoformat(value))
-
                     elif isinstance(column_type, DateTime):
                         query = query.where(column == datetime.fromisoformat(value))
-
                     else:
                         query = query.where(column == value)
 
@@ -58,7 +75,6 @@ class CRUDBase(Generic[ModelType]):
                     continue
 
         total_query = select(func.count()).select_from(query.subquery())
-
         total = await db.scalar(total_query)
 
         result = await db.execute(query.offset(skip).limit(limit))
@@ -68,9 +84,18 @@ class CRUDBase(Generic[ModelType]):
     async def crear(self, db: AsyncSession, *, obj_in: dict) -> ModelType:
         db_obj = self.model(**obj_in)
         db.add(db_obj)
-        await db.commit()
-        await db.refresh(db_obj)
-        return db_obj
+        try:
+            await db.commit()
+            await db.refresh(db_obj)
+            return db_obj
+        except IntegrityError as exc:
+            await db.rollback()
+            raise ReglaNegocioException(
+                codigo_interno="ERR_INTEGRITY",
+                mensaje="No se pudo crear el registro debido a un conflicto de datos.",
+                status_code=400,
+                error=str(exc)
+            ) from exc
 
     async def actualizar(
         self, db: AsyncSession, *, db_obj: ModelType, obj_in: dict
@@ -78,9 +103,30 @@ class CRUDBase(Generic[ModelType]):
         for field in obj_in:
             if hasattr(db_obj, field):
                 setattr(db_obj, field, obj_in[field])
-        await db.commit()
-        await db.refresh(db_obj)
-        return db_obj
+        try:
+            await db.commit()
+            await db.refresh(db_obj)
+            return db_obj
+        except IntegrityError as exc:
+            await db.rollback()
+            raise ReglaNegocioException(
+                codigo_interno="ERR_INTEGRITY",
+                mensaje="No se pudo actualizar el registro debido a un conflicto de datos.",
+                status_code=400,
+                error=str(exc)
+            ) from exc
+
+    async def _commit(self, db: AsyncSession) -> None:
+        try:
+            await db.commit()
+        except IntegrityError as exc:
+            await db.rollback()
+            raise ReglaNegocioException(
+                codigo_interno="ERR_INTEGRITY",
+                mensaje="Conflicto de datos en la base de datos.",
+                status_code=400,
+                error=str(exc),
+            ) from exc
 
     async def cambiar_estado(
         self, db: AsyncSession, *, id: Any, estado: str

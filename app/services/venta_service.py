@@ -23,7 +23,7 @@ class CRUDVenta(CRUDBase[VentaTienda]):
             await detalle_venta_service.crear(db, obj_in=det)
 
         # 5. Commit final: Todo se guarda al mismo tiempo
-        await db.commit()
+        await self._commit(db)
         await db.refresh(nueva_venta)
         
         return nueva_venta

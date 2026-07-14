@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
+from app.core.exceptions import ReglaNegocioException
 from app.models.categoria_maquina import CategoriaMaquina
 from app.services.base_service import CRUDBase
 
@@ -21,10 +21,10 @@ class CRUDCategoria(CRUDBase[CategoriaMaquina]):
         categoria = await self.buscar_por_nombre(db, obj_in["nombre"])
 
         if categoria:
-            raise HTTPException(
-                status_code=409, detail="Ya existe una categoría con ese nombre."
-            )
-
+            raise ReglaNegocioException(
+                    codigo_interno="ERR_CATEGORIA_DUPLICADA",
+                    mensaje=f"Ya existe una categoría con el nombre {obj_in['nombre']}."
+                )
         return await super().crear(db, obj_in=obj_in)
 
 categoria_service = CRUDCategoria(CategoriaMaquina)

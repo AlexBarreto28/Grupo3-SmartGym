@@ -5,7 +5,7 @@ from fastapi import Depends
 from app.core.deps import RoleChecker
 
 router = create_crud_router(
-    prefix="/api/v1/control_acceso",
+    prefix="/api/v1/controles_acceso",
     service=control_acceso_service,
     create_schema=CrearControlAcceso,
     update_schema=ActualizarControlAcceso,
@@ -17,5 +17,5 @@ router = create_crud_router(
     create_deps=[Depends(RoleChecker([1]))],
     delete_deps=[Depends(RoleChecker([1]))],
     read_deps=[Depends(RoleChecker([1]))],
-    obtein_deps=[Depends(RoleChecker([1]))]
+    obtain_deps=[Depends(RoleChecker([1]))]
 )

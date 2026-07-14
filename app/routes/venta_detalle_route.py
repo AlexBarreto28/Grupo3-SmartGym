@@ -13,9 +13,10 @@ router = create_crud_router(
     tag="Detalles Ventas",
     item_name="venta_detalle",
     activate=True,
-    update_deps=[Depends(RoleChecker([1,4]))],
-    create_deps=[Depends(RoleChecker([1,4]))],
-    delete_deps=[Depends(RoleChecker([1,4]))],
-    read_deps=[Depends(RoleChecker([1,4]))],
-    obtein_deps=[Depends(RoleChecker([1,4]))]
+    allow_delete=False,
+    update_deps=[Depends(RoleChecker([1, 4]))],
+    create_deps=[Depends(RoleChecker([1, 4]))],
+    delete_deps=[Depends(RoleChecker([1, 4]))],
+    read_deps=[Depends(RoleChecker([1, 4]))],
+    obtain_deps=[Depends(RoleChecker([1, 4]))]
 )

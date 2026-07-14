@@ -17,7 +17,7 @@ class TicketBase(BaseModel):
 class CrearTicket(TicketBase):
     fecha_apertura: datetime
     fecha_cierre: datetime
-    costo: float
+    costo: float = Field(..., ge=0)
 
 class ActualizarTicket(BaseModel):
     descripcion: Optional[str] = Field(None, min_length=5, max_length=255)

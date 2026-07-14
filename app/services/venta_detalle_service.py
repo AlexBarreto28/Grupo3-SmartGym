@@ -15,50 +15,14 @@ class CRUDDetalleVenta(CRUDBase[DetalleVenta]):
         )
         return result.scalars().all()
 
-    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None):
-        query = select(DetalleVenta).options(joinedload(DetalleVenta.producto))
-
-        if filters:
-            for field, value in filters.items():
-                if not hasattr(DetalleVenta, field):
-                    continue
-
-                column = getattr(DetalleVenta, field)
-
-                try:
-                    column_type = column.property.columns[0].type
-
-                    if isinstance(column_type, String):
-                        query = query.where(column.ilike(f"%{value}%"))
-
-                    elif isinstance(column_type, Integer):
-                        query = query.where(column == int(value))
-
-                    elif isinstance(column_type, Float):
-                        query = query.where(column == float(value))
-
-                    elif isinstance(column_type, Boolean):
-                        query = query.where(column == (str(value).lower() == "true"))
-
-                    elif isinstance(column_type, Date):
-                        query = query.where(column == date.fromisoformat(value))
-
-                    elif isinstance(column_type, DateTime):
-                        query = query.where(column == datetime.fromisoformat(value))
-
-                    else:
-                        query = query.where(column == value)
-
-                except (ValueError, TypeError, AttributeError):
-                    continue
-
-        total_query = select(func.count()).select_from(query.subquery())
-
-        total = await db.scalar(total_query)
-
-        result = await db.execute(query.offset(skip).limit(limit))
-
-        return {"total": total, "items": result.scalars().all()}
+    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None) -> dict[str, Any]:
+        return await super().obtener_paginado(
+            db,
+            skip=skip,
+            limit=limit,
+            filters=filters,
+            options=[joinedload(DetalleVenta.producto)],
+        )
 
     async def obtener(self, db: AsyncSession, id: Any) -> DetalleVenta | None:
         result = await db.execute(
@@ -71,7 +35,7 @@ class CRUDDetalleVenta(CRUDBase[DetalleVenta]):
     async def crear(self, db: AsyncSession, *, obj_in: dict) -> DetalleVenta:
         producto_id = obj_in.get("producto_id")
         cantidad = obj_in.get("cantidad")
-
+        
         stmt = select(ProductoTienda).where(ProductoTienda.id == producto_id)
         result = await db.execute(stmt)
         producto = result.scalars().first()
@@ -93,7 +57,7 @@ class CRUDDetalleVenta(CRUDBase[DetalleVenta]):
         nuevo_detalle = DetalleVenta(**obj_in)
         db.add(nuevo_detalle)
         
-        await db.commit() 
+        await self._commit(db)
         
         await db.refresh(nuevo_detalle)
         

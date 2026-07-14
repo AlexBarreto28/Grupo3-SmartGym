@@ -1,9 +1,9 @@
 from typing import Any, Type, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, params, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
-from fastapi import params, Query
+from app.core.exceptions import ReglaNegocioException
 import math
 
 
@@ -21,7 +21,7 @@ def create_crud_router(
     update_deps: Optional[list[params.Depends]] = None,
     delete_deps: Optional[list[params.Depends]] = None,
     read_deps: Optional[list[params.Depends]] = None,
-    obtein_deps: Optional[list[params.Depends]] = None,
+    obtain_deps: Optional[list[params.Depends]] = None,
     allow_update: bool = True,
     allow_delete: bool = True,
 ) -> APIRouter:
@@ -59,16 +59,18 @@ def create_crud_router(
             ]
         }
 
-    @router.get("/{item_id}", response_model=read_schema, dependencies=obtein_deps)
+    @router.get("/{item_id}", response_model=read_schema, dependencies=obtain_deps)
     async def leer(item_id: int, db: AsyncSession = Depends(get_db)):
         item = await service.obtener(db, item_id)
         if not item:
-            raise HTTPException(
-                status_code=404, detail=f"{item_name.capitalize()} no encontrado"
+            raise ReglaNegocioException(
+                codigo_interno="ERR_ITEM_NO_ENCONTRADO",
+                mensaje=f"{item_name.capitalize()} no encontrado",
+                status_code=404,
             )
         return item
 
-    @router.post("/", response_model=read_schema, dependencies=create_deps)
+    @router.post("/", response_model=read_schema, dependencies=create_deps, status_code=status.HTTP_201_CREATED)
     async def crear(obj_in: create_schema, db: AsyncSession = Depends(get_db)):
         return await service.crear(db, obj_in=obj_in.model_dump(exclude_none=True))
 
@@ -81,8 +83,10 @@ def create_crud_router(
             item = await service.obtener(db, item_id)
 
             if not item:
-                raise HTTPException(
-                    status_code=404, detail=f"{item_name.capitalize()} no encontrado"
+                raise ReglaNegocioException(
+                    codigo_interno="ERR_ITEM_NO_ENCONTRADO",
+                    mensaje=f"{item_name.capitalize()} no encontrado",
+                    status_code=404,
                 )
 
             return await service.actualizar(
@@ -99,9 +103,10 @@ def create_crud_router(
         ):
             item = await service.cambiar_estado(db, id=item_id, estado=obj_in.estado)
             if not item:
-                raise HTTPException(
+                raise ReglaNegocioException(
+                    codigo_interno="ERR_ITEM_NO_ENCONTRADO",
+                    mensaje=f"{item_name.capitalize()} no encontrado o no tiene campo estado",
                     status_code=404,
-                    detail=f"{item_name.capitalize()} no encontrado o no tiene campo estado",
                 )
             return item
 
@@ -113,32 +118,37 @@ def create_crud_router(
         async def activar(item_id: int, db: AsyncSession = Depends(get_db)):
             item = await service.activar(db, id=item_id)
             if not item:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{item_name.capitalize()} no encontrado o no está en estado 'inactivo'",
+                raise ReglaNegocioException(
+                    codigo_interno="ERR_ACTIVACION_FALLIDA",
+                    mensaje=f"No se pudo activar el {item_name}. Verifique que exista y esté en estado inactivo.",
+                    status_code=409,
                 )
             return item
 
     if allow_delete:
 
-        @router.delete("/{item_id}", dependencies=delete_deps)
+        @router.delete("/{item_id}", dependencies=delete_deps, status_code=status.HTTP_204_NO_CONTENT)
         async def eliminar(item_id: int, db: AsyncSession = Depends(get_db)):
             deleted = await service.eliminacion_fisica(db, id=item_id)
 
             if not deleted:
-                raise HTTPException(
-                    status_code=404, detail=f"{item_name.capitalize()} no encontrado"
+                raise ReglaNegocioException(
+                    codigo_interno="ERR_ITEM_NO_ENCONTRADO",
+                    mensaje=f"{item_name.capitalize()} no encontrado",
+                    status_code=404,
                 )
 
-            return {"detail": f"{item_name.capitalize()} eliminada"}
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    @router.put("/{item_id}/desactivar", dependencies=update_deps)
+    @router.put("/{item_id}/desactivar", dependencies=update_deps, status_code=status.HTTP_204_NO_CONTENT)
     async def desactivar(item_id: int, db: AsyncSession = Depends(get_db)):
         obj = await service.eliminacion_logica(db, id=item_id)
         if not obj:
-            raise HTTPException(
-                status_code=404, detail=f"{item_name.capitalize()} no encontrado"
+            raise ReglaNegocioException(
+                codigo_interno="ERR_ITEM_NO_ENCONTRADO",
+                mensaje=f"{item_name.capitalize()} no encontrado",
+                status_code=404,
             )
-        return {"detail": f"{item_name.capitalize()} desactivada"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

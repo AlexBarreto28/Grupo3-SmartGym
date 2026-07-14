@@ -13,10 +13,11 @@ router = create_crud_router(
     read_schema=RespuestaMaquina,
     tag="Maquinas",
     item_name="máquina",
+    allow_delete=False,
     state_schema=CambiarEstado,
-    update_deps=[Depends(RoleChecker([1,2]))],
+    update_deps=[Depends(RoleChecker([1, 2]))],
     create_deps=[Depends(RoleChecker([1]))],
     delete_deps=[Depends(RoleChecker([1]))],
     read_deps=[Depends(RoleChecker([1, 2]))],
-    obtein_deps=[Depends(RoleChecker([1,2]))]
+    obtain_deps=[Depends(RoleChecker([1, 2]))]
 )

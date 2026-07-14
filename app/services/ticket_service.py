@@ -3,7 +3,7 @@ from sqlalchemy import select, func, String, Integer, Float, Boolean, Date, Date
 from typing import Any
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
+from app.core.exceptions import ReglaNegocioException
 from app.services.base_service import CRUDBase
 from app.models.ticket_mantenimiento import TicketMantenimiento
 from app.models.usuario import Usuario
@@ -17,50 +17,14 @@ class CRUDTicketMantenimiento(CRUDBase[TicketMantenimiento]):
         )
         return result.scalars().all()
 
-    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None):
-        query = select(TicketMantenimiento).options(joinedload(TicketMantenimiento.maquina))
-
-        if filters:
-            for field, value in filters.items():
-                if not hasattr(TicketMantenimiento, field):
-                    continue
-
-                column = getattr(TicketMantenimiento, field)
-
-                try:
-                    column_type = column.property.columns[0].type
-
-                    if isinstance(column_type, String):
-                        query = query.where(column.ilike(f"%{value}%"))
-
-                    elif isinstance(column_type, Integer):
-                        query = query.where(column == int(value))
-
-                    elif isinstance(column_type, Float):
-                        query = query.where(column == float(value))
-
-                    elif isinstance(column_type, Boolean):
-                        query = query.where(column == (str(value).lower() == "true"))
-
-                    elif isinstance(column_type, Date):
-                        query = query.where(column == date.fromisoformat(value))
-
-                    elif isinstance(column_type, DateTime):
-                        query = query.where(column == datetime.fromisoformat(value))
-
-                    else:
-                        query = query.where(column == value)
-
-                except (ValueError, TypeError, AttributeError):
-                    continue
-
-        total_query = select(func.count()).select_from(query.subquery())
-
-        total = await db.scalar(total_query)
-
-        result = await db.execute(query.offset(skip).limit(limit))
-
-        return {"total": total, "items": result.scalars().all()}
+    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None) -> dict[str, Any]:
+        return await super().obtener_paginado(
+            db,
+            skip=skip,
+            limit=limit,
+            filters=filters,
+            options=[joinedload(TicketMantenimiento.maquina)],
+        )
 
 
     async def obtener(self, db: AsyncSession, id: Any) -> TicketMantenimiento | None:
@@ -76,16 +40,26 @@ class CRUDTicketMantenimiento(CRUDBase[TicketMantenimiento]):
         usuario = await db.execute(select(Usuario).where(Usuario.id == usuario_id))
         usuario = usuario.scalars().first()
         if not usuario:
-            raise HTTPException(status_code=404, detail="El usuario no existe.")
+            raise ReglaNegocioException(
+                codigo_interno="ERR_USUARIO_NO_EXISTE",
+                mensaje="El usuario no existe.",
+                status_code=404,
+            )
         maquina_id = obj_in.get("maquina_id")
         maquina = await db.execute(select(Maquina).where(Maquina.id == maquina_id))
         maquina = maquina.scalars().first()
         if not maquina:
-            raise HTTPException(status_code=404, detail="La máquina no existe.")
+            raise ReglaNegocioException(
+                codigo_interno="ERR_MAQUINA_NO_EXISTE",
+                mensaje="La máquina no existe.",
+                status_code=404,
+            )
 
         if maquina.estado == "mantenimiento":
-            raise HTTPException(
-                status_code=409, detail="La máquina ya se encuentra en mantenimiento."
+            raise ReglaNegocioException(
+                codigo_interno="ERR_MAQUINA_MANTENIMIENTO",
+                mensaje="La máquina ya se encuentra en mantenimiento.",
+                status_code=409,
             )
 
         maquina.estado = "mantenimiento"
@@ -99,21 +73,31 @@ class CRUDTicketMantenimiento(CRUDBase[TicketMantenimiento]):
         ticket = await db.get(TicketMantenimiento, ticket_id)
 
         if not ticket:
-            raise HTTPException(status_code=404, detail="El ticket no existe.")
+            raise ReglaNegocioException(
+                codigo_interno="ERR_TICKET_NO_EXISTE",
+                mensaje="El ticket no existe.",
+                status_code=404,
+            )
 
         if ticket.fecha_cierre:
-            raise HTTPException(status_code=409, detail="El ticket ya fue cerrado.")
+            raise ReglaNegocioException(
+                codigo_interno="ERR_TICKET_CERRADO",
+                mensaje="El ticket ya fue cerrado.",
+                status_code=409,
+            )
 
         if costo < 0:
-            raise HTTPException(
-                status_code=400, detail="El costo no puede ser negativo."
+            raise ReglaNegocioException(
+                codigo_interno="ERR_COSTO_INVALIDO",
+                mensaje="El costo no puede ser negativo.",
+                status_code=400,
             )
         ticket.costo = costo
         ticket.fecha_cierre = datetime.now()
         maquina = ticket.maquina
         maquina.estado = "activa"
         db.add(maquina)
-        await db.commit()
+        await self._commit(db)
         await db.refresh(ticket)
         return ticket
 

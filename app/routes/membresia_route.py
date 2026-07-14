@@ -13,9 +13,10 @@ router = create_crud_router(
     tag="Membresias",
     item_name="membresia",
     activate=True,
-    update_deps=[Depends(RoleChecker([1,3]))],
-    create_deps=[Depends(RoleChecker([1,3]))],
+    allow_delete=False,
+    update_deps=[Depends(RoleChecker([1, 3]))],
+    create_deps=[Depends(RoleChecker([1, 3]))],
     delete_deps=[Depends(RoleChecker([1]))],
-    read_deps=[Depends(RoleChecker([1,3]))],
-    obtein_deps=[Depends(RoleChecker([1,3]))]
+    read_deps=[Depends(RoleChecker([1, 3]))],
+    obtain_deps=[Depends(RoleChecker([1, 3]))]
 )

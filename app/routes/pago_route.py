@@ -13,9 +13,10 @@ router = create_crud_router(
     tag="Pagos",
     item_name="pago",
     activate=True,
+    allow_delete=False,
     update_deps=[Depends(RoleChecker([4]))],
-    create_deps=[Depends(RoleChecker([4,3]))],
+    create_deps=[Depends(RoleChecker([4, 3]))],
     delete_deps=[Depends(RoleChecker([4]))],
-    read_deps=[Depends(RoleChecker([4,1]))],
-    obtein_deps=[Depends(RoleChecker([4,1]))]
+    read_deps=[Depends(RoleChecker([4, 1]))],
+    obtain_deps=[Depends(RoleChecker([4, 1]))]
 )

@@ -1,7 +1,11 @@
-from fastapi import FastAPI, Request
+from datetime import datetime
+from http import HTTPStatus
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 from fastapi.security import HTTPBearer
 import app.models
+import logging
 from app.db.base import Base
 from app.db.session import engine
 from fastapi.responses import JSONResponse
@@ -26,8 +30,7 @@ from app.routes.venta_detalle_route import router as venta_detalle_router
 from app.routes.ticket_route import router as ticket_router
 from app.routes.auth_route import router as auth_route
 
-
-
+logger = logging.getLogger("app.exceptions")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -69,11 +72,63 @@ async def regla_negocio_exception_handler(request: Request, exc: ReglaNegocioExc
         status_code=exc.status_code,
         content={
             "error": exc.error,
-            "codigolnterno": exc.codigo_interno,
+            "codigo_interno": exc.codigo_interno,
             "mensaje": exc.mensaje,
             "timestamp": exc.timestamp
         }
     )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "Bad Request",
+            "codigo_interno": "ERR_VALIDACION",
+            "mensaje": "Payload con errores de validación.",
+            "detalles": exc.errors(),
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail
+    mensaje = detail if isinstance(detail, str) else detail.get("mensaje") if isinstance(detail, dict) else str(detail)
+    codigo_interno = detail.get("codigo_interno") if isinstance(detail, dict) else None
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": HTTPStatus(exc.status_code).phrase,
+            "codigo_interno": codigo_interno,
+            "mensaje": mensaje,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        f"Error no controlado en {request.method} {request.url.path}: {str(exc)}",
+        exc_info=True,
+    )
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "codigo_interno": "ERR_INTERNAL_SERVER_ERROR",
+            "mensaje": "Ha ocurrido un error interno e inesperado en el servidor. Por favor, intente más tarde.",
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    )
+
+
 @app.get("/")
 async def read_root():
     return {"message": "¡API de SmartGym funcionando perfectamente!"}
+
+@app.get("/test-error")
+async def test_error():
+    # Provocamos una división por cero intencionada
+    return 1 / 0

@@ -13,9 +13,10 @@ router = create_crud_router(
     tag="Usuarios",
     item_name="usuario",
     activate=True,
+    allow_delete=False,
     update_deps=[Depends(RoleChecker([1]))],
     create_deps=[Depends(RoleChecker([1]))],
     delete_deps=[Depends(RoleChecker([1]))],
     read_deps=[Depends(RoleChecker([1]))],
-    obtein_deps=[Depends(RoleChecker([1,2,3,4]))]
+    obtain_deps=[Depends(RoleChecker([1, 2, 3, 4]))]
 )

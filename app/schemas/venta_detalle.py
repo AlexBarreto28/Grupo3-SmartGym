@@ -6,8 +6,7 @@ class ProductoRelacionResponse(BaseModel):
 
     id: int
     nombre: str 
-    precio: float 
-
+    precio: float = Field(..., decimal_places=2, ge=0)
 class DetalleVentaBase(BaseModel):
     venta_id: int
     producto_id: int

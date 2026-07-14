@@ -17,5 +17,5 @@ router = create_crud_router(
     create_deps=[Depends(RoleChecker([1]))],
     delete_deps=[Depends(RoleChecker([1]))],
     read_deps=[Depends(RoleChecker([1]))],
-    obtein_deps=[Depends(RoleChecker([1]))]
+    obtain_deps=[Depends(RoleChecker([1]))]
 )

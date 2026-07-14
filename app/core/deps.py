@@ -1,5 +1,6 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPBearer
+from app.core.exceptions import ReglaNegocioException
 from app.core.security import decode_token
 
 
@@ -14,15 +15,17 @@ class RoleChecker:
         print(payload)
         
         if not payload:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, 
-                detail="Token inválido o expirado"
+            raise ReglaNegocioException(
+                codigo_interno="ERR_TOKEN_INVALIDO",
+                mensaje="Token inválido o expirado",
+                status_code=401,
             )
         user_role_id = payload.get("role_id")
         if user_role_id not in self.allowed_roles_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
-                detail="No tienes los permisos necesarios para esta acción"
+            raise ReglaNegocioException(
+                codigo_interno="ERR_SIN_PERMISOS",
+                mensaje="No tienes los permisos necesarios para esta acción",
+                status_code=403,
             )
         
         return payload

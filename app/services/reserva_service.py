@@ -1,6 +1,6 @@
 from sqlalchemy import select, func, String, Integer, Float, Boolean, Date, DateTime
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, status
+from app.core.exceptions import ReglaNegocioException
 from datetime import datetime
 from typing import Any
 from sqlalchemy.orm import joinedload
@@ -19,50 +19,14 @@ class CRUDReserva(CRUDBase[Reserva]):
         )
         return result.scalars().all()
 
-    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None):
-        query = select(Reserva).options(joinedload(Reserva.cliente))
-
-        if filters:
-            for field, value in filters.items():
-                if not hasattr(Reserva, field):
-                    continue
-
-                column = getattr(Reserva, field)
-
-                try:
-                    column_type = column.property.columns[0].type
-
-                    if isinstance(column_type, String):
-                        query = query.where(column.ilike(f"%{value}%"))
-
-                    elif isinstance(column_type, Integer):
-                        query = query.where(column == int(value))
-
-                    elif isinstance(column_type, Float):
-                        query = query.where(column == float(value))
-
-                    elif isinstance(column_type, Boolean):
-                        query = query.where(column == (str(value).lower() == "true"))
-
-                    elif isinstance(column_type, Date):
-                        query = query.where(column == date.fromisoformat(value))
-
-                    elif isinstance(column_type, DateTime):
-                        query = query.where(column == datetime.fromisoformat(value))
-
-                    else:
-                        query = query.where(column == value)
-
-                except (ValueError, TypeError, AttributeError):
-                    continue
-
-        total_query = select(func.count()).select_from(query.subquery())
-
-        total = await db.scalar(total_query)
-
-        result = await db.execute(query.offset(skip).limit(limit))
-
-        return {"total": total, "items": result.scalars().all()}
+    async def obtener_paginado(self, db: AsyncSession, *, skip: int = 0, limit: int = 10, filters: dict | None = None) -> dict[str, Any]:
+        return await super().obtener_paginado(
+            db,
+            skip=skip,
+            limit=limit,
+            filters=filters,
+            options=[joinedload(Reserva.cliente)],
+        )
 
     async def obtener(self, db: AsyncSession, id: Any) -> Reserva | None:
         result = await db.execute(
@@ -101,9 +65,10 @@ class CRUDReserva(CRUDBase[Reserva]):
         sesion_id = obj_in.get("sesion_id")
         
         if not cliente_id or not sesion_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Los campos 'cliente_id' y 'sesion_id' son obligatorios."
+            raise ReglaNegocioException(
+                codigo_interno="ERR_PARAMETROS_REQUERIDOS",
+                mensaje="Los campos 'cliente_id' y 'sesion_id' son obligatorios.",
+                status_code=400,
             )
         
         
@@ -170,7 +135,7 @@ class CRUDReserva(CRUDBase[Reserva]):
         
         nueva_reserva = Reserva(**obj_in)
         db.add(nueva_reserva)
-        await db.commit()
+        await self._commit(db)
         await db.refresh(nueva_reserva)
         
         return nueva_reserva

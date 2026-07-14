@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
+from app.core.exceptions import ReglaNegocioException
 from app.models.disciplina import Disciplina
 from app.services.base_service import CRUDBase
 
@@ -18,8 +18,10 @@ class CRUDDisciplina(CRUDBase[Disciplina]):
         disciplina = await self.buscar_por_nombre(db, obj_in["nombre"])
 
         if disciplina:
-            raise HTTPException(
-                status_code=409, detail="Ya existe una disciplina con ese nombre."
+            raise ReglaNegocioException(
+                codigo_interno="ERR_DISCIPLINA_DUPLICADA",
+                mensaje="Ya existe una disciplina con ese nombre.",
+                status_code=409,
             )
 
         return await super().crear(db, obj_in=obj_in)
