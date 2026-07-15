@@ -153,6 +153,13 @@ Email: manuel@gym.com
 Password: Cliente123*
 ```
 
+### Finanzas
+
+```text
+Email: ana@gym.com
+Password: Finanzas123*
+```
+
 ---
 
 ## Ejecución

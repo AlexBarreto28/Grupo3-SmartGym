@@ -6,6 +6,8 @@ from app.models.usuario import Usuario
 from app.services.base_service import CRUDBase
 from typing import Any
 from app.core.exceptions import ReglaNegocioException 
+from datetime import date
+from app.core.security import hash_password
 
 class CRUDCliente(CRUDBase[Cliente]):
     
@@ -27,31 +29,62 @@ class CRUDCliente(CRUDBase[Cliente]):
         return await super().obtener(db, id=id, options=[joinedload(Cliente.usuario)])
 
     async def crear(self, db: AsyncSession, *, obj_in: dict) -> Cliente:
-        usuario_id = obj_in.get("usuario_id")
         cedula = obj_in.get("cedula")
+        email = obj_in.get("email")
 
-        if usuario_id:
-            stmt_usuario = select(Usuario).where(Usuario.id == usuario_id)
-            result_usuario = await db.execute(stmt_usuario)
-            usuario_existente = result_usuario.scalars().first()
+        stmt_cedula = select(Cliente).where(Cliente.cedula == cedula)
+        result_cedula = await db.execute(stmt_cedula)
+        cedula_existente = result_cedula.scalars().first()
 
-            if not usuario_existente:
-                raise ReglaNegocioException(
-                    codigo_interno="ERR_USUARIO_NO_ENCONTRADO",
-                    mensaje=f"No se puede crear el cliente: El usuario con ID {usuario_id} no existe."
-                )
+        if cedula_existente:
+            raise ReglaNegocioException(
+                codigo_interno="ERR_CEDULA_DUPLICADA",
+                mensaje=f"Ya existe un cliente registrado con la cédula {cedula}.",
+                status_code=400,
+            )
+        
+        stmt_usuario = select(Usuario).where(Usuario.email == email)
+        result_usuario = await db.execute(stmt_usuario)
+        usuario_existente = result_usuario.scalars().first()
 
-        if cedula:
-            stmt_cedula = select(Cliente).where(Cliente.cedula == cedula)
-            result_cedula = await db.execute(stmt_cedula)
-            cedula_existente = result_cedula.scalars().first()
+        if usuario_existente:
+            raise ReglaNegocioException(
+                codigo_interno="ERR_EMAIL_DUPLICADO",
+                mensaje="Este correo electrónico ya está registrado.",
+                status_code=400,
+            )
 
-            if cedula_existente:
-                raise ReglaNegocioException(
-                    codigo_interno="ERR_CEDULA_DUPLICADA",
-                    mensaje=f"Ya existe un cliente registrado con la cédula {cedula}."
-                )
+        try:
 
-        return await super().crear(db, obj_in=obj_in)
+            usuario = Usuario(
+                nombre=obj_in["nombre"],
+                email=obj_in["email"],
+                password=hash_password(obj_in["password"]),
+                rol_id=3,
+                estado="activo",
+            )
+
+            db.add(usuario)
+
+            await db.flush()
+
+            cliente = Cliente(
+                cedula=obj_in["cedula"],
+                telefono=obj_in.get("telefono"),
+                fecha_registro=date.today(),
+                usuario_id=usuario.id,
+            )
+
+            db.add(cliente)
+
+            await db.commit()
+
+            await db.refresh(cliente)
+
+            return await self.obtener(db, cliente.id)
+
+        except Exception:
+            await db.rollback()
+            raise
 
 cliente_service = CRUDCliente(Cliente)

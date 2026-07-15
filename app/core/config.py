@@ -28,7 +28,6 @@ class Settings(BaseSettings):
             f"{self.POSTGRES_PASSWORD}@"
             f"{self.DB_HOST}:{self.DB_PORT}/"
             f"{self.POSTGRES_DB}"
-            f"?pool_size=20&max_overflow=30&pool_timeout=30&pool_pre_ping=true"
         )
 
 settings = Settings()

@@ -52,8 +52,9 @@ async def seed():
         admin_rol = Rol(nombre="Administrador", estado="activo")
         entrenador_rol = Rol(nombre="Entrenador", estado="activo")
         cliente_rol = Rol(nombre="Cliente", estado="activo")
+        finanzas_rol = Rol(nombre="Finanzas", estado="activo")
 
-        session.add_all([admin_rol, entrenador_rol, cliente_rol])
+        session.add_all([admin_rol, entrenador_rol, cliente_rol, finanzas_rol])
         await session.flush()
 
         admin_user = Usuario(
@@ -80,7 +81,15 @@ async def seed():
             estado="activo",
         )
 
-        session.add_all([admin_user, entrenador_user, cliente_user])
+        finanzas_user = Usuario(
+            nombre="Ana Finanzas",
+            email="ana@gym.com",
+            password=hash_password("Finanzas123*"),
+            rol_id=finanzas_rol.id,
+            estado="activo",
+        )
+
+        session.add_all([admin_user, entrenador_user, cliente_user, finanzas_user])
         await session.flush()
 
         perfil_entrenador = Entrenador(

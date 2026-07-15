@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 from datetime import date
 
@@ -18,6 +18,14 @@ class ClienteBase(BaseModel):
 
 class CrearCliente(ClienteBase):
     pass
+
+class RegistrarCliente(BaseModel):
+    nombre: str
+    email: EmailStr
+    password: str
+
+    cedula: str
+    telefono: Optional[str] = None
 
 class ActualizarCliente(BaseModel):
     cedula: Optional[str] = Field(None, min_length=6, max_length=20)
