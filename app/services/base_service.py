@@ -161,8 +161,20 @@ class CRUDBase(Generic[ModelType]):
 
     async def eliminacion_fisica(self, db: AsyncSession, *, id: int) -> bool:
         obj = await db.get(self.model, id)
-        if obj:
+
+        if not obj:
+            return False
+
+        try:
             await db.delete(obj)
             await db.commit()
             return True
-        return False
+
+        except IntegrityError:
+            await db.rollback()
+
+            raise ReglaNegocioException(
+                codigo_interno="ERR_ELIMINACION_CON_DEPENDENCIAS",
+                mensaje="No se puede eliminar este registro porque tiene información asociada.",
+                status_code=409,
+            )

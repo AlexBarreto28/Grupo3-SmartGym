@@ -7,8 +7,8 @@ class ControlAccesoBase(BaseModel):
     fecha_hora: datetime
     mensaje: Optional[str] = Field(None, max_length=255)
 
-class CrearControlAcceso(ControlAccesoBase):
-    pass
+class CrearControlAcceso(BaseModel):
+    cedula: str
 
 class ActualizarControlAcceso(BaseModel):
     cliente_id: Optional[int] = None

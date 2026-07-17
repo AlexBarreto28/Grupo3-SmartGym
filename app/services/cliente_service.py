@@ -3,11 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from app.models.cliente import Cliente
 from app.models.usuario import Usuario  
+from app.models.rol import Rol
 from app.services.base_service import CRUDBase
-from typing import Any
 from app.core.exceptions import ReglaNegocioException 
-from datetime import date
 from app.core.security import hash_password
+from datetime import date
+from typing import Any
+
+
 
 class CRUDCliente(CRUDBase[Cliente]):
     
@@ -42,7 +45,7 @@ class CRUDCliente(CRUDBase[Cliente]):
                 mensaje=f"Ya existe un cliente registrado con la cédula {cedula}.",
                 status_code=400,
             )
-        
+
         stmt_usuario = select(Usuario).where(Usuario.email == email)
         result_usuario = await db.execute(stmt_usuario)
         usuario_existente = result_usuario.scalars().first()
@@ -54,13 +57,23 @@ class CRUDCliente(CRUDBase[Cliente]):
                 status_code=400,
             )
 
-        try:
+        stmt_rol = select(Rol).where(Rol.nombre == "Cliente")
+        result_rol = await db.execute(stmt_rol)
+        rol_cliente = result_rol.scalars().first()
 
+        if not rol_cliente:
+            raise ReglaNegocioException(
+                codigo_interno="ERR_ROL_NO_ENCONTRADO",
+                mensaje="No existe el rol Cliente en el sistema.",
+                status_code=500,
+            )
+
+        try:
             usuario = Usuario(
                 nombre=obj_in["nombre"],
                 email=obj_in["email"],
                 password=hash_password(obj_in["password"]),
-                rol_id=3,
+                rol_id=rol_cliente.id,
                 estado="activo",
             )
 
