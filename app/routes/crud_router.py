@@ -1,154 +1,96 @@
-from typing import Any, Type, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, params, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.deps import RoleChecker, security_scheme, decode_token
 from app.db.session import get_db
+from app.schemas.pago import CrearPago, ActualizarPago, RespuestaPago
+from app.services.pago_service import pago_service
 from app.core.exceptions import ReglaNegocioException
-import math
 
+# ROUTER PRINCIPAL PARA PAGOS 
+router = APIRouter(prefix="/api/v1/pagos", tags=["Pagos"])
 
-def create_crud_router(
-    prefix: str,
-    service: Any,
-    create_schema: Type[BaseModel],
-    update_schema: Type[BaseModel],
-    read_schema: Type[BaseModel],
-    tag: str,
-    item_name: str = "item",
-    state_schema: Optional[Type[BaseModel]] = None,
-    activate: bool = False,
-    create_deps: Optional[list[params.Depends]] = None,
-    update_deps: Optional[list[params.Depends]] = None,
-    delete_deps: Optional[list[params.Depends]] = None,
-    read_deps: Optional[list[params.Depends]] = None,
-    obtain_deps: Optional[list[params.Depends]] = None,
-    allow_update: bool = True,
-    allow_delete: bool = True,
-) -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=[tag])
-
-    @router.get("/", dependencies=read_deps)
-    async def leer_varios(
-        request: Request,
-        page: int = Query(1, ge=1),
-        size: int = Query(10, ge=1, le=100),
-        db: AsyncSession = Depends(get_db),
-    ):
-        skip = (page - 1) * size
-
-        filters = dict(request.query_params)
-
-        filters.pop("page", None)
-        filters.pop("size", None)
-
-        data = await service.obtener_paginado(
-            db,
-            skip=skip,
-            limit=size,
-            filters=filters
+@router.post(
+    "/",
+    response_model=RespuestaPago,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar un nuevo pago",
+    description="""
+    Registra un pago realizado por un cliente para activar su membresía.
+    
+    **Reglas de negocio:**
+    - El pago es inmutable (no se puede modificar después)
+    - La fecha se asigna automáticamente
+    - La membresía se cambia a "Activo" automáticamente
+    - El usuario que registra el pago se obtiene del token JWT
+    
+    **Roles permitidos:**
+    - Finanzas (ID: 3)
+    - Administrador (ID: 4)
+    """
+)
+async def crear_pago(
+    pago_data: CrearPago,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(security_scheme)
+):
+    """
+    Crea un nuevo pago y activa la membresía asociada.
+    """
+    # 1. Obtener el usuario autenticado desde el token
+    payload = decode_token(token.credentials)
+    current_user_id = payload.get("sub") or payload.get("id") or payload.get("usuario_id")
+    
+    if not current_user_id:
+        raise ReglaNegocioException(
+            codigo_interno="ERR_USUARIO_NO_AUTENTICADO",
+            mensaje="No se pudo obtener el usuario autenticado",
+            status_code=401,
         )
+    
+    # 2. Crear el pago pasando el usuario_id
+    obj_in = pago_data.model_dump(exclude_none=True)
+    obj_in["current_user_id"] = current_user_id
+    
+    nuevo_pago = await pago_service.crear(db, obj_in=obj_in)
+    
+    return nuevo_pago
 
-        return {
-            "page": page,
-            "size": size,
-            "total": data["total"],
-            "pages": math.ceil(data["total"] / size),
-            "items": [
-                read_schema.model_validate(item)
-                for item in data["items"]
-            ]
-        }
 
-    @router.get("/{item_id}", response_model=read_schema, dependencies=obtain_deps)
-    async def leer(item_id: int, db: AsyncSession = Depends(get_db)):
-        item = await service.obtener(db, item_id)
-        if not item:
-            raise ReglaNegocioException(
-                codigo_interno="ERR_ITEM_NO_ENCONTRADO",
-                mensaje=f"{item_name.capitalize()} no encontrado",
-                status_code=404,
-            )
-        return item
 
-    @router.post("/", response_model=read_schema, dependencies=create_deps, status_code=status.HTTP_201_CREATED)
-    async def crear(obj_in: create_schema, db: AsyncSession = Depends(get_db)):
-        return await service.crear(db, obj_in=obj_in.model_dump(exclude_none=True))
+@router.get(
+    "/",
+    response_model=list[RespuestaPago],
+    dependencies=[Depends(RoleChecker([4, 1]))],  # Admin y Finanzas
+    summary="Listar pagos",
+    description="Obtiene la lista de todos los pagos registrados"
+)
+async def listar_pagos(
+    page: int = 1,
+    size: int = 10,
+    db: AsyncSession = Depends(get_db),
+):
+    skip = (page - 1) * size
+    data = await pago_service.obtener_paginado(db, skip=skip, limit=size)
+    return data["items"]
 
-    if allow_update:
 
-        @router.put("/{item_id}", response_model=read_schema, dependencies=update_deps)
-        async def actualizar(
-            item_id: int, obj_in: update_schema, db: AsyncSession = Depends(get_db)
-        ):
-            item = await service.obtener(db, item_id)
-
-            if not item:
-                raise ReglaNegocioException(
-                    codigo_interno="ERR_ITEM_NO_ENCONTRADO",
-                    mensaje=f"{item_name.capitalize()} no encontrado",
-                    status_code=404,
-                )
-
-            return await service.actualizar(
-                db, db_obj=item, obj_in=obj_in.model_dump(exclude_none=True)
-            )
-
-    if state_schema is not None:
-
-        @router.put(
-            "/{item_id}/estado", response_model=read_schema, dependencies=update_deps
+@router.get(
+    "/{pago_id}",
+    response_model=RespuestaPago,
+    dependencies=[Depends(RoleChecker([4, 1]))],  # Admin y Finanzas
+    summary="Obtener un pago por ID"
+)
+async def obtener_pago(
+    pago_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    pago = await pago_service.obtener(db, pago_id)
+    if not pago:
+        raise ReglaNegocioException(
+            codigo_interno="ERR_PAGO_NO_ENCONTRADO",
+            mensaje=f"Pago con ID {pago_id} no encontrado",
+            status_code=404,
         )
-        async def cambiar_estado(
-            item_id: int, obj_in: state_schema, db: AsyncSession = Depends(get_db)
-        ):
-            item = await service.cambiar_estado(db, id=item_id, estado=obj_in.estado)
-            if not item:
-                raise ReglaNegocioException(
-                    codigo_interno="ERR_ITEM_NO_ENCONTRADO",
-                    mensaje=f"{item_name.capitalize()} no encontrado o no tiene campo estado",
-                    status_code=404,
-                )
-            return item
+    return pago
 
-    if activate:
 
-        @router.put(
-            "/{item_id}/activar", response_model=read_schema, dependencies=update_deps
-        )
-        async def activar(item_id: int, db: AsyncSession = Depends(get_db)):
-            item = await service.activar(db, id=item_id)
-            if not item:
-                raise ReglaNegocioException(
-                    codigo_interno="ERR_ACTIVACION_FALLIDA",
-                    mensaje=f"No se pudo activar el {item_name}. Verifique que exista y esté en estado inactivo.",
-                    status_code=409,
-                )
-            return item
-
-    if allow_delete:
-
-        @router.delete("/{item_id}", dependencies=delete_deps, status_code=status.HTTP_204_NO_CONTENT)
-        async def eliminar(item_id: int, db: AsyncSession = Depends(get_db)):
-            deleted = await service.eliminacion_fisica(db, id=item_id)
-
-            if not deleted:
-                raise ReglaNegocioException(
-                    codigo_interno="ERR_ITEM_NO_ENCONTRADO",
-                    mensaje=f"{item_name.capitalize()} no encontrado",
-                    status_code=404,
-                )
-
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    @router.put("/{item_id}/desactivar", dependencies=update_deps, status_code=status.HTTP_204_NO_CONTENT)
-    async def desactivar(item_id: int, db: AsyncSession = Depends(get_db)):
-        obj = await service.eliminacion_logica(db, id=item_id)
-        if not obj:
-            raise ReglaNegocioException(
-                codigo_interno="ERR_ITEM_NO_ENCONTRADO",
-                mensaje=f"{item_name.capitalize()} no encontrado",
-                status_code=404,
-            )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    return router
