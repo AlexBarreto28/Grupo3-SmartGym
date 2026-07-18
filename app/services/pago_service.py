@@ -77,3 +77,4 @@ class CRUDPago(CRUDBase[Pago]):
         )
 
 pago_service = CRUDPago(Pago)
+

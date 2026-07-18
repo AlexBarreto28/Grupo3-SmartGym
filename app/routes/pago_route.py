@@ -170,4 +170,4 @@ async def listar_pagos_por_cliente(
         filters={"membresia_id__in": membresia_ids}
     )
     
-    return data["items"]
+    return data["items"] 
