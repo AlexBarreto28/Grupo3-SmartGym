@@ -48,6 +48,7 @@ class CRUDSesion(CRUDBase[SesionProgramada]):
         hora_fin = obj_in.get("hora_fin")
         cupos = obj_in.get("cupos")
         entrenador_id = obj_in.get("entrenador_id")
+        fecha = obj_in.get("fecha")
 
         if hora_inicio and hora_fin and hora_inicio == hora_fin:
             raise ReglaNegocioException(
@@ -93,6 +94,7 @@ class CRUDSesion(CRUDBase[SesionProgramada]):
             stmt_solapamiento = select(SesionProgramada).where(
                 SesionProgramada.entrenador_id == entrenador_id,
                 SesionProgramada.estado == "activo",
+                SesionProgramada.fecha == fecha,
                 SesionProgramada.hora_inicio < hora_fin,
                 SesionProgramada.hora_fin > hora_inicio
             )

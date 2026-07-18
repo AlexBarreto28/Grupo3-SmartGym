@@ -1,12 +1,13 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
+from decimal import Decimal
 
 class ProductoRelacionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    nombre: str 
-    precio: float = Field(..., decimal_places=2, ge=0)
+    nombre: str
+    precio: Decimal = Field(..., decimal_places=2, ge=0)
 class DetalleVentaBase(BaseModel):
     venta_id: int
     producto_id: int
