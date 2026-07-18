@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, ForeignKey, Date, Numeric, String, CheckConstraint
+from sqlalchemy.sql import func  
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -14,7 +15,7 @@ class EvaluacionBiometrica(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    fecha = Column(Date, nullable=False)
+    fecha = Column(Date, nullable=False, server_default=func.now())
     peso = Column(Numeric(5, 2), nullable=False)
     estatura = Column(Numeric(5, 2), nullable=False)
     porcentaje_grasa = Column(Numeric(5, 2), nullable=False)

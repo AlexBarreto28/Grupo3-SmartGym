@@ -3,7 +3,6 @@ from datetime import date
 from typing import Optional
 
 class EvaluacionBase(BaseModel):
-    fecha: date
     peso: float = Field(..., gt=0)
     estatura: float = Field(..., gt=0)
     porcentaje_grasa: float = Field(..., ge=0, le=100)
@@ -14,7 +13,6 @@ class CrearEvaluacion(EvaluacionBase):
     pass
 
 class ActualizarEvaluacion(BaseModel):
-    fecha: Optional[date] = None
     peso: Optional[float] = Field(None, gt=0)
     estatura: Optional[float] = Field(None, gt=0)
     porcentaje_grasa: Optional[float] = Field(None, ge=0, le=100)
@@ -22,7 +20,13 @@ class ActualizarEvaluacion(BaseModel):
     cliente_id: Optional[int] = None
 
 class RespuestaEvaluacion(EvaluacionBase):
-    id: int
+    id: int 
+    fecha: date  
+    peso: float
+    estatura: float
+    porcentaje_grasa: float
+    observaciones: Optional[str] = None
+    cliente_id: int
     estado: str
 
     class Config:

@@ -17,6 +17,9 @@ class CRUDEvaluacion(CRUDBase[EvaluacionBiometrica]):
                 codigo_interno="ERR_ID_NO_EXISTE",
                 mensaje="El cliente con el ID proporcionado no existe."
             )
+
+        obj_in.pop("fecha", None) 
+
         return await super().crear(db, obj_in=obj_in)
 
 evaluacion_service = CRUDEvaluacion(EvaluacionBiometrica)

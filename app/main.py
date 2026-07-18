@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import ReglaNegocioException
 from app.routes.maquina_route import router as maquina_router
 from app.routes.categoria_route import router as categoria_router
-from app.routes.cliente_route import router as cliente_router
+from app.routes.cliente_route import router as cliente_router, custom_router as cliente_custom_router  
 from app.routes.control_route import router as control_router
 from app.routes.disciplinas_route import router as disciplinas_router
 from app.routes.entrenador_route import router as entrenador_router
@@ -48,6 +48,7 @@ app.include_router(auth_route)
 app.include_router(rol_router)
 app.include_router(usuario_router)
 app.include_router(cliente_router)
+app.include_router(cliente_custom_router) 
 app.include_router(entrenador_router)
 app.include_router(disciplinas_router)
 app.include_router(sesion_router)

@@ -5,7 +5,7 @@ from fastapi import Depends
 from app.core.deps import RoleChecker
 
 router = create_crud_router(
-    prefix="/api/v1/evaluaciones_biometricas",
+    prefix="/api/v1/evaluaciones",
     service=evaluacion_service,
     create_schema=CrearEvaluacion,
     update_schema=ActualizarEvaluacion,
