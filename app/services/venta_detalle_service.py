@@ -33,9 +33,12 @@ class CRUDDetalleVenta(CRUDBase[DetalleVenta]):
         return result.scalars().first()
 
     async def crear(self, db: AsyncSession, *, obj_in: dict) -> DetalleVenta:
+        
         producto_id = obj_in.get("producto_id")
         cantidad = obj_in.get("cantidad")
+        venta_id = obj_in.get("venta_id")
         
+        #  VALIDAR QUE EL PRODUCTO EXISTE 
         stmt = select(ProductoTienda).where(ProductoTienda.id == producto_id)
         result = await db.execute(stmt)
         producto = result.scalars().first()
@@ -43,24 +46,26 @@ class CRUDDetalleVenta(CRUDBase[DetalleVenta]):
         if not producto:
             raise ReglaNegocioException(
                 codigo_interno="ERR_PRODUCTO_NO_ENCONTRADO",
-                mensaje=f"El producto con ID {producto_id} no existe."
+                mensaje=f"El producto con ID {producto_id} no existe.",
+                status_code=404,
             )
 
+        # VALIDAR STOCK 
         if producto.stock < cantidad:
             raise ReglaNegocioException(
                 codigo_interno="ERR_STOCK_INSUFICIENTE",
-                mensaje=f"Stock insuficiente para '{producto.nombre}'. Disponible: {producto.stock}"
+                mensaje=f"Stock insuficiente para '{producto.nombre}'. Disponible: {producto.stock}",
+                status_code=409,
             )
 
-        producto.stock -= cantidad
-        
+        # Crear el detalle 
         nuevo_detalle = DetalleVenta(**obj_in)
         db.add(nuevo_detalle)
         
         await self._commit(db)
-        
         await db.refresh(nuevo_detalle)
         
         return nuevo_detalle
+
 
 detalle_venta_service = CRUDDetalleVenta(DetalleVenta)
